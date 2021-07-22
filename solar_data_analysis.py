@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.pyplot import plot, scatter, show
 from os import walk
 import os
+import chardet
 
 
 
@@ -76,13 +77,15 @@ def datetimeToEpoch(df):
     # input of column df of timestamps returns as list of epoch time
     pattern = '%m/%d/%Y %H:%M'
 
-    epochTimes = np.zeros([len(df.index),1], dtype=int)
-    idx = 0
+    epochTimes = []
+   
     for timestamp in df.values.tolist():
         epochTime = int(time.mktime(time.strptime(timestamp, pattern)))
-        epochTimes[idx]= epochTime
-        idx += 1
+        epochTimes.append(epochTime)
+       
     
+
+
     return epochTimes
 
 def epochToDatetime(df):
@@ -90,33 +93,38 @@ def epochToDatetime(df):
     datetimes = []
     for epoch in df.values.tolist():
         readable = datetime.datetime.fromtimestamp(epoch).isoformat()
-        print(str(readable))
         datetimes.append(str(readable))
     return datetimes
 
 def analyzeData(path, filename):
     '''creates csv files of mean value and max value
     for each day'''
-    df = pd.read_csv(path + '/data/' + filename)
-    
+
+    fullFilename = path + '/data/' + filename
+    # accounting for different encodings
+    with open(fullFilename, 'rb') as f:
+        result = chardet.detect(f.read())  # or readline if the file is large
+
+    df = pd.read_csv(fullFilename, encoding=result['encoding'])
+   
     intensity = df['parameterValue'].tolist()
     timestamps = df['timestamp'].tolist()
 
     # converting timestamp to epoch
     epochTimes = datetimeToEpoch(df['timestamp'])
     
-    epochTimes_list = epochTimes.tolist()
+    epochTimes_list = epochTimes
     
     maxTimes, maxIntensities = findMaxInDay(timestamps, intensity)
-    print(maxTimes)
+
     maxTimesdf = pd.DataFrame(maxTimes, columns=['timestamp'])
 
     days, aveIntensities = findAveInDay(timestamps, intensity)
-    print(days)
+   
     daysdf = pd.DataFrame(days, columns=['timestamp'])
-    daysEpoch = datetimeToEpoch(daysdf['timestamp']).tolist()
-    print(daysEpoch)
-    maxTimesEpoch = datetimeToEpoch(maxTimesdf['timestamp']).tolist()
+    daysEpoch = datetimeToEpoch(daysdf['timestamp'])
+    
+    maxTimesEpoch = datetimeToEpoch(maxTimesdf['timestamp'])
     
 
     # ------------------------------ Sending to .csv ----------------------------- #
@@ -132,25 +140,26 @@ def analyzeData(path, filename):
     df_averages.to_csv(path+'/highs/'+highs_filename, index=False)
     
     
-
+    
     # --------------------------------- Plotting --------------------------------- #
     # plot(epochTimes, intensity)
     # scatter(maxTimesEpoch, maxIntensities, color='green')
     # scatter(daysEpoch, aveIntensities, color='purple')
     # # scatter(daysEpoch, ar_smoke/max(ar_smoke), color='orange')
 
-    show()
+    #show()
 
 
 
 def main():
     cwd = os.getcwd()
     filenames = next(walk(cwd +'/data'), (None, None, []))[2]
-
+    
     for filename in filenames:
-        analyzeData(cwd, filename)
+        if filename[-4:] == '.csv':
+            analyzeData(cwd, filename)
 
 if __name__=="__main__":
     
     main()
-    
+
